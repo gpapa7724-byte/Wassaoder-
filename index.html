@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WassaOrder</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--f:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--bg:#f6f3f7;--card:#fff;--ink:#24172e;--muted:#7a6d85;--line:#e6dfeb;--brand:#9b1d54;--brand-ink:#fff;--soft:#f7e3ec;--warn:#b45309;--danger:#b42318;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#181019;--card:#231a27;--ink:#f1e9f3;--muted:#a99bb3;--line:#34283a;--brand:#f0719f;--brand-ink:#2a0a17;--soft:#3a1f2d;--warn:#f0a35a;--danger:#f97066;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#181019;--card:#231a27;--ink:#f1e9f3;--muted:#a99bb3;--line:#34283a;--brand:#f0719f;--brand-ink:#2a0a17;--soft:#3a1f2d;--warn:#f0a35a;--danger:#f97066;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f);padding-bottom:92px}
+header{padding:20px 16px 4px;max-width:640px;margin:0 auto}
+header small{color:var(--muted);font-weight:600}
+h1{font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+h2{font-size:20px;font-weight:800}
+h3{font-size:16px;font-weight:600;margin-top:4px}
+main{padding:10px 16px;display:grid;gap:12px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hero{background:var(--brand);color:var(--brand-ink);border-radius:20px;padding:20px}
+.hero b{display:block;font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.05}
+.hero span{opacity:.85}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-size:18px;font-weight:800}
+.stat span{color:var(--muted);font-size:12px;line-height:1.2;display:block}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.muted{color:var(--muted)}
+.btn{background:var(--brand);color:var(--brand-ink);border:0;border-radius:12px;padding:13px 16px;font:600 15px var(--f);width:100%;cursor:pointer;text-decoration:none;display:block;text-align:center}
+.btn.ghost{background:var(--soft);color:var(--brand)}
+.btn.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+.btn.sm{width:auto;padding:8px 12px;font-size:13px;display:inline-block}
+.btn:focus-visible,.chip:focus-visible,nav button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:99px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);white-space:nowrap}
+.bar{height:8px;border-radius:99px;background:var(--line);margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--brand);border-radius:99px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.chip{white-space:nowrap;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:7px 14px;font:600 13px var(--f);cursor:pointer}
+.chip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+label{display:grid;gap:4px;font-weight:600;font-size:13px;color:var(--muted)}
+input,select{font:16px var(--f);padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);width:100%}
+select{width:auto;flex:1}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+nav button{flex:1;background:none;border:0;color:var(--muted);font:600 12px var(--f);padding:6px 0;display:grid;gap:2px;justify-items:center;cursor:pointer}
+nav button span{font-size:20px;line-height:1}
+nav button.on{color:var(--brand)}
+#sheet{position:fixed;inset:0;background:rgba(20,8,25,.55);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+#sheet[hidden],#toast[hidden]{display:none}
+.panel{background:var(--bg);width:100%;max-width:640px;max-height:90%;overflow:auto;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));display:grid;gap:12px}
+.line{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.line small{display:block;color:var(--muted)}
+.step{display:flex;align-items:center;gap:12px}
+.step button{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 18px var(--f);cursor:pointer}
+.step span{min-width:20px;text-align:center;font-weight:800}
+.total{display:flex;justify-content:space-between;font-size:18px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;z-index:30;font-weight:600;max-width:90%;text-align:center}
+.empty{text-align:center;color:var(--muted);padding:24px 8px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="sheet" hidden onclick="if(event.target===this)closeSheet()"></div>
+<div id="toast" hidden></div>
+<script>
+const KEY='wassaorder:v1',LOW=5,LIMIT=30;
+const ST=['Nouvelle','Confirmée','En préparation','En livraison','Livrée','Annulée'];
+const COL=['#3b82f6','#8b5cf6','#d97706','#0891b2','#16a34a','#dc2626'];
+const NAV=[['home','🏠','Accueil'],['orders','🧾','Commandes'],['products','📦','Produits'],['clients','👥','Clients']];
+const TITLE={home:'Tableau de bord',orders:'Commandes',products:'Produits',clients:'Clients'};
+let S={user:null,products:[],clients:[],orders:[],seq:1},tab='home',filter=-1,pend=null,draft={},tt;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Number(n||0).toLocaleString('fr-FR')+' FCFA';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const day=ts=>new Date(ts).toLocaleDateString('sv');
+const num=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===9?'221'+d:d};
+const monthCount=()=>S.orders.filter(o=>day(o.ts).slice(0,7)===day(Date.now()).slice(0,7)).length;
+function load(){try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+function sheet(h){$('#sheet').innerHTML='<div class="panel">'+h+'<button class="btn ghost" onclick="closeSheet()">Fermer</button></div>';$('#sheet').hidden=false}
+function closeSheet(){$('#sheet').hidden=true}
+function go(t){tab=t;pend=null;render();scrollTo(0,0)}
+function empty(m){return '<div class="empty">'+m+'</div>'}
+
+function render(){
+  if(!S.user)return onboard();
+  const v={home,orders,products,clients}[tab]();
+  $('#app').innerHTML=`<header><small>${esc(S.user.shop)}</small><h1>${TITLE[tab]}</h1></header><main>${v}</main><nav>${NAV.map(n=>`<button class="${n[0]===tab?'on':''}" onclick="go('${n[0]}')"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`;
+}
+function onboard(){
+  $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px"><h1>WassaOrder</h1><p class="muted">Gardez toutes vos commandes WhatsApp au même endroit.</p></div><div class="card" style="display:grid;gap:12px"><label>Votre nom<input id="un" autocomplete="name"></label><label>Nom de votre boutique<input id="us"></label><button class="btn" onclick="signup()">Créer mon compte gratuit</button></div><p class="muted" style="font-size:13px">Formule Gratuit : ${LIMIT} commandes par mois.</p></main>`;
+}
+function signup(){const n=$('#un').value.trim(),s=$('#us').value.trim();if(!n||!s)return toast('Remplissez votre nom et celui de la boutique');S.user={name:n,shop:s};save();render()}
+
+function home(){
+  const today=S.orders.filter(o=>day(o.ts)===day(Date.now())).length;
+  const open=S.orders.filter(o=>o.status<4).length;
+  const sales=S.orders.filter(o=>o.status===4).reduce((a,o)=>a+o.total,0);
+  const low=S.products.filter(p=>p.stock<=LOW),m=monthCount();
+  return `<div class="hero"><b>${open} commande${open>1?'s':''} à traiter</b><span>${today} reçue${today>1?'s':''} aujourd’hui</span></div>
+  <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b>${low.length}</b><span>Stock faible</span></div></div>
+  <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
+  <div class="card"><div class="row"><b>Formule Gratuit</b><span class="muted">${m}/${LIMIT} ce mois</span></div><div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div></div>
+  ${low.length?`<div class="card"><b>À réapprovisionner</b>${low.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:var(--warn)">reste ${p.stock}</span></div>`).join('')}</div>`:''}
+  <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
+}
+function wa(o,c){
+  const msg=`Bonjour ${c.name}, votre commande n°${o.num} (${o.items.map(i=>i.qty+' '+i.name).join(', ')}) : ${fmt(o.total)}. Statut : ${ST[o.status]}.`;
+  return `https://wa.me/${num(c.phone)}?text=${encodeURIComponent(msg)}`;
+}
+function orderCard(o){
+  const c=S.clients.find(x=>x.id===o.cid)||{name:'Client',phone:''};
+  return `<div class="card" style="display:grid;gap:8px"><div class="row"><b>n°${o.num} · ${esc(c.name)}</b><span class="badge" style="--c:${COL[o.status]}">${ST[o.status]}</span></div>
+  <div class="muted">${o.items.map(i=>`${i.qty} × ${esc(i.name)}`).join(', ')}${o.note?` — ${esc(o.note)}`:''}</div>
+  <div class="row"><b>${fmt(o.total)}</b><span class="muted">${new Date(o.ts).toLocaleDateString('fr-FR')}</span></div>
+  <div class="row"><select aria-label="Statut" onchange="setStatus('${o.id}',this.value)">${ST.map((s,i)=>`<option value="${i}"${i===o.status?' selected':''}>${s}</option>`).join('')}</select><a class="btn sm" target="_blank" rel="noopener" href="${wa(o,c)}">WhatsApp</a></div></div>`;
+}
+function orders(){
+  const list=S.orders.filter(o=>filter<0||o.status===filter);
+  return `<button class="btn" onclick="openOrder()">+ Nouvelle commande</button><div class="chips">${['Toutes',...ST].map((s,i)=>`<button class="chip${i-1===filter?' on':''}" onclick="filter=${i-1};render()">${s}</button>`).join('')}</div>${list.map(orderCard).join('')||empty('Aucune commande dans cette liste.')}`;
+}
+function products(){
+  return `<button class="btn" onclick="openProduct()">+ Nouveau produit</button>${S.products.map(p=>`<div class="card row"><div><b>${esc(p.name)}</b><div class="muted">${fmt(p.price)} · stock : ${p.stock}</div>${p.stock<=LOW?'<span class="badge" style="--c:var(--warn)">Stock faible</span>':''}</div><div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="openProduct('${p.id}')">Modifier</button><button class="btn danger sm" onclick="delP('${p.id}')">${pend===p.id?'Confirmer ?':'Supprimer'}</button></div></div>`).join('')||empty('Ajoutez votre premier produit pour pouvoir enregistrer des commandes.')}`;
+}
+function clients(){
+  return `<button class="btn" onclick="openClient()">+ Nouveau client</button>${S.clients.map(c=>{const os=S.orders.filter(o=>o.cid===c.id&&o.status<5);return `<div class="card row"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.phone||'Pas de numéro')} · ${os.length} commande${os.length>1?'s':''} · ${fmt(os.reduce((a,o)=>a+o.total,0))}</div></div>${c.phone?`<a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/${num(c.phone)}">WhatsApp</a>`:''}</div>`}).join('')||empty('Vos clients s’ajoutent automatiquement avec leurs commandes.')}`;
+}
+
+function openProduct(id){
+  const p=S.products.find(x=>x.id===id)||{};
+  sheet(`<h2>${id?'Modifier le produit':'Nouveau produit'}</h2><label>Nom<input id="pn" value="${esc(p.name||'')}"></label><label>Prix (FCFA)<input id="pp" type="number" inputmode="numeric" value="${p.price==null?'':p.price}"></label><label>Stock<input id="ps" type="number" inputmode="numeric" value="${p.stock==null?'':p.stock}"></label><button class="btn" onclick="saveProduct('${id||''}')">Enregistrer</button>`);
+}
+function saveProduct(id){
+  const name=$('#pn').value.trim(),price=Number($('#pp').value),stock=Number($('#ps').value);
+  if(!name||!(price>=0)||$('#pp').value===''||$('#ps').value==='')return toast('Remplissez le nom, le prix et le stock');
+  const p=S.products.find(x=>x.id===id);
+  if(p)Object.assign(p,{name,price,stock});else S.products.push({id:uid(),name,price,stock});
+  save();closeSheet();render();
+}
+function delP(id){if(pend===id){S.products=S.products.filter(p=>p.id!==id);pend=null;save()}else pend=id;render()}
+function openClient(){
+  sheet(`<h2>Nouveau client</h2><label>Nom<input id="cn"></label><label>Numéro WhatsApp<input id="cp" inputmode="tel" placeholder="ex. 77 123 45 67"></label><button class="btn" onclick="saveClient()">Enregistrer</button>`);
+}
+function saveClient(){
+  const name=$('#cn').value.trim();if(!name)return toast('Indiquez le nom du client');
+  S.clients.push({id:uid(),name,phone:$('#cp').value.trim()});save();closeSheet();render();
+}
+
+function openOrder(){
+  if(!S.products.length)return toast('Ajoutez d’abord un produit');
+  if(monthCount()>=LIMIT)return toast('Limite de '+LIMIT+' commandes atteinte ce mois-ci (formule Gratuit)');
+  draft={};
+  const avail=S.products.filter(p=>p.stock>0);
+  sheet(`<h2>Nouvelle commande</h2><label>Client<input id="oc" list="cl" autocomplete="off" oninput="fillPhone()"></label><datalist id="cl">${S.clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist><label>Numéro WhatsApp<input id="op" inputmode="tel" placeholder="ex. 77 123 45 67"></label>
+  <div>${avail.map(p=>`<div class="line"><div><b>${esc(p.name)}</b><small>${fmt(p.price)} · stock : ${p.stock}</small></div><div class="step"><button onclick="q('${p.id}',-1)" aria-label="Retirer">−</button><span id="q${p.id}">0</span><button onclick="q('${p.id}',1)" aria-label="Ajouter">+</button></div></div>`).join('')||'<p class="muted">Aucun produit en stock.</p>'}</div>
+  <label>Note<input id="on" placeholder="Adresse, détail…"></label><div class="total"><span>Total</span><b id="ot">${fmt(0)}</b></div><button class="btn" onclick="saveOrder()">Enregistrer la commande</button>`);
+}
+function fillPhone(){const c=S.clients.find(x=>x.name.toLowerCase()===$('#oc').value.trim().toLowerCase());if(c&&c.phone)$('#op').value=c.phone}
+function q(id,d){
+  const p=S.products.find(x=>x.id===id),n=Math.max(0,Math.min(p.stock,(draft[id]||0)+d));draft[id]=n;
+  $('#q'+id).textContent=n;
+  $('#ot').textContent=fmt(Object.keys(draft).reduce((a,k)=>a+draft[k]*S.products.find(x=>x.id===k).price,0));
+}
+function saveOrder(){
+  const name=$('#oc').value.trim(),phone=$('#op').value.trim();
+  const items=Object.keys(draft).filter(k=>draft[k]>0).map(k=>{const p=S.products.find(x=>x.id===k);return{pid:k,name:p.name,price:p.price,qty:draft[k]}});
+  if(!name)return toast('Indiquez le nom du client');
+  if(!items.length)return toast('Choisissez au moins un produit');
+  let c=S.clients.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  if(!c){c={id:uid(),name,phone};S.clients.push(c)}else if(phone)c.phone=phone;
+  items.forEach(i=>{const p=S.products.find(x=>x.id===i.pid);p.stock-=i.qty});
+  S.orders.unshift({id:uid(),num:S.seq++,cid:c.id,items,total:items.reduce((a,i)=>a+i.price*i.qty,0),status:0,ts:Date.now(),note:$('#on').value.trim()});
+  save();closeSheet();tab='orders';filter=-1;render();toast('Commande enregistrée');
+}
+function setStatus(id,v){
+  const o=S.orders.find(x=>x.id===id),n=Number(v),was=o.status;
+  const move=sign=>o.items.forEach(i=>{const p=S.products.find(x=>x.id===i.pid);if(p)p.stock=Math.max(0,p.stock+sign*i.qty)});
+  if(n===5&&was!==5)move(1);
+  if(was===5&&n!==5)move(-1);
+  o.status=n;save();render();
+}
+load();render();
+</script>
+</body>
+</html>
