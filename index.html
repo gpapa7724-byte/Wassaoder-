@@ -57,19 +57,31 @@ nav button.on{color:var(--brand)}
 .total{display:flex;justify-content:space-between;font-size:18px}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;z-index:30;font-weight:600;max-width:90%;text-align:center}
 .empty{text-align:center;color:var(--muted);padding:24px 8px}
+.shopbtn{background:none;border:0;color:var(--muted);font:600 13px var(--f);display:flex;align-items:center;gap:8px;padding:0;cursor:pointer;text-align:left}
+.shopbtn img{width:28px;height:28px;border-radius:8px;object-fit:cover}
+.muted,.card b,.line span{overflow-wrap:anywhere;min-width:0}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+@keyframes fade{from{opacity:0}}
+.panel{animation:up .22s ease-out}
+#toast{animation:fade .2s}
+.btn,.chip,nav button{transition:transform .1s}
+.btn:active,.chip:active,nav button:active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <div id="sheet" hidden onclick="if(event.target===this)closeSheet()"></div>
 <div id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-const KEY='wassaorder:v1',LOW=5,LIMIT=30;
+let KEY='wassaorder:v1',AUTH=null,ready=false,pt;
+const LOW=5,LIMIT=30,SB_URL='https://keglwburhrnpuxfteihw.supabase.co',SB_KEY='sb_publishable_YVzaacmg2bGyxs6WS9KnDw_qiPLmSpP',sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 const ST=['Nouvelle','Confirmée','En préparation','En livraison','Livrée','Annulée'];
 const COL=['#3b82f6','#8b5cf6','#d97706','#0891b2','#16a34a','#dc2626'];
 const NAV=[['home','🏠','Accueil'],['orders','🧾','Commandes'],['products','📦','Produits'],['clients','👥','Clients']];
 const TITLE={home:'Tableau de bord',orders:'Commandes',products:'Produits',clients:'Clients'};
-let S={user:null,products:[],clients:[],orders:[],seq:1},tab='home',filter=-1,pend=null,draft={},tt;
+let S={user:null,products:[],clients:[],orders:[],seq:1},tab='home',filter=-1,pend=null,draft={},tt,query='';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('fr-FR')+' FCFA';
@@ -77,8 +89,13 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const day=ts=>new Date(ts).toLocaleDateString('sv');
 const num=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===9?'221'+d:d};
 const monthCount=()=>S.orders.filter(o=>day(o.ts).slice(0,7)===day(Date.now()).slice(0,7)).length;
-function load(){try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function load(){try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r));S.products.forEach(p=>{p.stock=Math.max(0,Math.floor(Number(p.stock))||0);p.price=Number(p.price)||0})}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}push()}
+function push(){
+  if(!sb||!AUTH||!ready)return;
+  clearTimeout(pt);
+  pt=setTimeout(async()=>{const r=await sb.from('sauvegardes').upsert({user_id:AUTH.id,data:S,updated_at:new Date().toISOString()});if(r.error)toast('Sauvegarde en ligne impossible pour le moment')},700);
+}
 function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
 function sheet(h){$('#sheet').innerHTML='<div class="panel">'+h+'<button class="btn ghost" onclick="closeSheet()">Fermer</button></div>';$('#sheet').hidden=false}
 function closeSheet(){$('#sheet').hidden=true}
@@ -88,7 +105,7 @@ function empty(m){return '<div class="empty">'+m+'</div>'}
 function render(){
   if(!S.user)return onboard();
   const v={home,orders,products,clients}[tab]();
-  $('#app').innerHTML=`<header><small>${esc(S.user.shop)}</small><h1>${TITLE[tab]}</h1></header><main>${v}</main><nav>${NAV.map(n=>`<button class="${n[0]===tab?'on':''}" onclick="go('${n[0]}')"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`;
+  $('#app').innerHTML=`<header><button class="shopbtn" onclick="openProfile()" aria-label="Profil de la boutique">${S.user.logo?`<img src="${S.user.logo}" alt="">`:''}${esc(S.user.shop)} ✎</button><h1>${TITLE[tab]}</h1></header><main>${v}</main><nav>${NAV.map(n=>`<button class="${n[0]===tab?'on':''}" onclick="go('${n[0]}')"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`;
 }
 function onboard(){
   $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px"><h1>WassaOrder</h1><p class="muted">Gardez toutes vos commandes WhatsApp au même endroit.</p></div><div class="card" style="display:grid;gap:12px"><label>Votre nom<input id="un" autocomplete="name"></label><label>Nom de votre boutique<input id="us"></label><button class="btn" onclick="signup()">Créer mon compte gratuit</button></div><p class="muted" style="font-size:13px">Formule Gratuit : ${LIMIT} commandes par mois.</p></main>`;
@@ -101,12 +118,112 @@ function home(){
   const sales=S.orders.filter(o=>o.status===4).reduce((a,o)=>a+o.total,0);
   const low=S.products.filter(p=>p.stock<=LOW),m=monthCount();
   return `<div class="hero"><b>${open} commande${open>1?'s':''} à traiter</b><span>${today} reçue${today>1?'s':''} aujourd’hui</span></div>
-  <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b>${low.length}</b><span>Stock faible</span></div></div>
+  <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b${low.length?' style="color:var(--warn)"':''}>${S.products.reduce((a,p)=>a+p.stock,0)}</b><span${low.length?' style="color:var(--warn);font-weight:600"':''}>${low.length?'Stock faible':'Stock total'}</span></div></div>
   <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
   <div class="card"><div class="row"><b>Formule Gratuit</b><span class="muted">${m}/${LIMIT} ce mois</span></div><div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div></div>
-  ${low.length?`<div class="card"><b>À réapprovisionner</b>${low.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:var(--warn)">reste ${p.stock}</span></div>`).join('')}</div>`:''}
+  ${stats()}
+  ${S.products.length?`<div class="card"><div class="row"><b>Stock des produits</b><span class="muted">${S.products.reduce((a,p)=>a+p.stock,0)} en tout</span></div>${S.products.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:${p.stock===0?'var(--danger)':p.stock<=LOW?'var(--warn)':'#16a34a'}">${p.stock===0?'Épuisé':p.stock<=LOW?'Stock faible : '+p.stock:p.stock+' en stock'}</span></div>`).join('')}</div>`:''}
   <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
 }
+const PAY=['Non payé','Partiel','Payé'],ps=o=>o.paid>0?(o.paid>=o.total?2:1):0;
+function olist(){
+  const k=query.trim().toLowerCase();
+  const l=S.orders.filter(o=>(filter<0||o.status===filter)&&(!k||[String(o.num),(S.clients.find(c=>c.id===o.cid)||{}).name||'',...o.items.map(i=>i.name)].join(' ').toLowerCase().includes(k)));
+  return l.map(orderCard).join('')||empty('Aucune commande trouvée.');
+}
+function rc(o,c){
+  const msg=`🧾 Reçu n°${o.num} · ${S.user.shop} — ${o.items.map(i=>`${i.qty} × ${i.name} : ${fmt(i.price*i.qty)}`).join(', ')}. Total : ${fmt(o.total)}. Payé : ${fmt(o.paid||0)}. Reste à payer : ${fmt(o.total-(o.paid||0))}. Merci ${c.name} !${S.user.wa?' Contact : '+S.user.wa:''}`;
+  return `https://wa.me/${num(c.phone)}?text=${encodeURIComponent(msg)}`;
+}
+function setPay(id,v){
+  const o=S.orders.find(x=>x.id===id);v=Number(v);
+  if(v===0)o.paid=0;else if(v===2)o.paid=o.total;
+  else{const a=Number(String(prompt('Montant déjà reçu (FCFA)',o.paid>0&&o.paid<o.total?o.paid:'')||'').replace(/\s/g,''));if(!(a>0&&a<o.total)){render();return toast('Entrez un montant supérieur à 0 et inférieur au total')}o.paid=a}
+  save();render();
+}
+function stats(){
+  const ok=S.orders.filter(o=>o.status<5),now=Date.now(),d=day(now),sum=l=>l.reduce((a,o)=>a+o.total,0);
+  const td=ok.filter(o=>day(o.ts)===d),w=ok.filter(o=>now-o.ts<6048e5),mo=ok.filter(o=>day(o.ts).slice(0,7)===d.slice(0,7));
+  const cnt={};ok.forEach(o=>o.items.forEach(i=>cnt[i.name]=(cnt[i.name]||0)+i.qty));
+  const its=mo.flatMap(o=>o.items).filter(i=>i.cost!=null),prof=its.reduce((a,i)=>a+i.qty*(i.price-i.cost),0);
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0],due=ok.reduce((a,o)=>a+o.total-(o.paid||0),0);
+  return `<div class="card"><b>Ventes</b>${[['Aujourd’hui',td],['7 derniers jours',w],['Ce mois-ci',mo]].map(r=>`<div class="line"><span>${r[0]}</span><b>${fmt(sum(r[1]))}</b></div>`).join('')}${its.length?`<div class="line"><span>Bénéfice ce mois-ci</span><b>${fmt(prof)}</b></div>`:''}<div class="line"><span>Reste à encaisser</span><b>${fmt(due)}</b></div>${top?`<div class="line"><span>Produit le plus vendu</span><b>${esc(top[0])} (${top[1]})</b></div>`:''}</div>`;
+}
+function authScreen(msg){
+  $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px"><h1>WassaOrder</h1><p class="muted">Connectez-vous pour retrouver vos commandes sur tous vos téléphones.</p></div><div class="card" style="display:grid;gap:12px"><label>E-mail<input id="ae" type="email" inputmode="email" autocomplete="email"></label><label>Mot de passe (6 caractères minimum)<input id="ap" type="password" autocomplete="current-password"></label><button class="btn" onclick="doAuth('in')">Se connecter</button><button class="btn ghost" onclick="doAuth('up')">Créer mon compte</button>${msg?`<p class="muted">${esc(msg)}</p>`:''}</div></main>`;
+}
+async function doAuth(mode){
+  const email=$('#ae').value.trim(),password=$('#ap').value;
+  if(!email||password.length<6)return toast('Entrez votre e-mail et un mot de passe de 6 caractères minimum');
+  toast('Un instant…');
+  const r=mode==='up'?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});
+  if(r.error){const m=r.error.message||'';return toast(/Invalid login/i.test(m)?'E-mail ou mot de passe incorrect':/already registered/i.test(m)?'Cet e-mail a déjà un compte : connectez-vous':/not confirmed/i.test(m)?'Confirmez d’abord votre e-mail (lien reçu par e-mail)':'Erreur : '+m)}
+  if(!r.data.session)return authScreen('Compte créé. Ouvrez le lien reçu par e-mail pour le confirmer, puis connectez-vous.');
+  enter(r.data.session.user);
+}
+async function enter(user){
+  AUTH=user;ready=false;KEY='wassaorder:v1:'+user.id;
+  S={user:null,products:[],clients:[],orders:[],seq:1};load();
+  if(S.user)render();else $('#app').innerHTML='<main style="padding-top:56px"><div class="empty">Chargement de vos données…</div></main>';
+  await pull();
+}
+async function pull(){
+  const r=await sb.from('sauvegardes').select('data').maybeSingle();
+  if(r.error){toast('Hors connexion : vos changements ne seront pas sauvegardés en ligne');return render()}
+  const d=r.data&&r.data.data,fix=()=>S.products.forEach(p=>{p.stock=Math.max(0,Math.floor(Number(p.stock))||0);p.price=Number(p.price)||0});
+  ready=true;
+  if(d&&d.user){
+    S=Object.assign({user:null,products:[],clients:[],orders:[],seq:1},d);fix();
+    try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  }else{
+    try{
+      if(!S.user&&!localStorage.getItem('wassaorder:v1:done')){
+        const old=localStorage.getItem('wassaorder:v1');
+        if(old){S=Object.assign(S,JSON.parse(old));fix()}
+        localStorage.setItem('wassaorder:v1:done','1');
+      }
+    }catch(e){}
+    if(S.user)save();
+  }
+  render();
+}
+async function boot(){
+  if(!sb){load();return render()}
+  const r=await sb.auth.getSession();
+  if(r.data&&r.data.session)enter(r.data.session.user);else authScreen();
+}
+async function logout(){
+  clearTimeout(pt);await sb.auth.signOut();AUTH=null;ready=false;KEY='wassaorder:v1';
+  S={user:null,products:[],clients:[],orders:[],seq:1};closeSheet();authScreen();
+}
+function openProfile(){
+  const u=S.user;
+  sheet(`<h2>Profil de la boutique</h2><label>Nom de la boutique<input id="fs" value="${esc(u.shop)}"></label><label>Numéro WhatsApp de la boutique<input id="fw" inputmode="tel" value="${esc(u.wa||'')}" placeholder="ex. 77 123 45 67"></label><div class="row"><span class="muted">Logo</span><span id="lp">${u.logo?`<img src="${u.logo}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover">`:''}</span></div><label class="btn ghost" style="position:relative;overflow:hidden">${u.logo?'Changer le logo':'Ajouter un logo'}<input id="lf" type="file" accept="image/*" aria-label="Choisir un logo" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" onchange="pickLogo(this)"></label>${u.logo?'<button class="btn danger" onclick="delLogo()">Retirer le logo</button>':''}<button class="btn" onclick="saveProfile()">Enregistrer</button>${AUTH?`<button class="btn danger" onclick="logout()">Se déconnecter (${esc(AUTH.email)})</button>`:''}`);
+}
+function saveProfile(){
+  const shop=$('#fs').value.trim();if(!shop)return toast('Indiquez le nom de la boutique');
+  S.user.shop=shop;S.user.wa=$('#fw').value.trim();
+  save();closeSheet();render();toast('Profil enregistré');
+}
+function pickLogo(inp){
+  const f=inp.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onerror=()=>toast('Impossible de lire cette image');
+  r.onload=()=>{
+    const im=new Image();
+    im.onerror=()=>toast('Image non prise en charge, essayez une photo JPG ou PNG');
+    im.onload=()=>{
+      const c=document.createElement('canvas');c.width=c.height=96;const s=Math.min(im.width,im.height);
+      c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,96,96);
+      S.user.logo=c.toDataURL('image/jpeg',.8);save();render();
+      $('#lp').innerHTML=`<img src="${S.user.logo}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover">`;
+      toast('Logo ajouté');
+    };
+    im.src=r.result;
+  };
+  r.readAsDataURL(f);
+}
+function delLogo(){delete S.user.logo;save();closeSheet();render()}
 function wa(o,c){
   const msg=`Bonjour ${c.name}, votre commande n°${o.num} (${o.items.map(i=>i.qty+' '+i.name).join(', ')}) : ${fmt(o.total)}. Statut : ${ST[o.status]}.`;
   return `https://wa.me/${num(c.phone)}?text=${encodeURIComponent(msg)}`;
@@ -116,11 +233,11 @@ function orderCard(o){
   return `<div class="card" style="display:grid;gap:8px"><div class="row"><b>n°${o.num} · ${esc(c.name)}</b><span class="badge" style="--c:${COL[o.status]}">${ST[o.status]}</span></div>
   <div class="muted">${o.items.map(i=>`${i.qty} × ${esc(i.name)}`).join(', ')}${o.note?` — ${esc(o.note)}`:''}</div>
   <div class="row"><b>${fmt(o.total)}</b><span class="muted">${new Date(o.ts).toLocaleDateString('fr-FR')}</span></div>
-  <div class="row"><select aria-label="Statut" onchange="setStatus('${o.id}',this.value)">${ST.map((s,i)=>`<option value="${i}"${i===o.status?' selected':''}>${s}</option>`).join('')}</select><a class="btn sm" target="_blank" rel="noopener" href="${wa(o,c)}">WhatsApp</a></div></div>`;
+  <div class="row"><select aria-label="Statut" onchange="setStatus('${o.id}',this.value)">${ST.map((s,i)=>`<option value="${i}"${i===o.status?' selected':''}>${s}</option>`).join('')}</select><a class="btn sm" target="_blank" rel="noopener" href="${wa(o,c)}">WhatsApp</a></div>
+  <div class="row"><select aria-label="Paiement" onchange="setPay('${o.id}',this.value)">${PAY.map((s,i)=>`<option value="${i}"${i===ps(o)?' selected':''}>${s}${i===1&&ps(o)===1?' · reste '+fmt(o.total-o.paid):''}</option>`).join('')}</select><a class="btn ghost sm" target="_blank" rel="noopener" href="${rc(o,c)}">Reçu</a></div></div>`;
 }
 function orders(){
-  const list=S.orders.filter(o=>filter<0||o.status===filter);
-  return `<button class="btn" onclick="openOrder()">+ Nouvelle commande</button><div class="chips">${['Toutes',...ST].map((s,i)=>`<button class="chip${i-1===filter?' on':''}" onclick="filter=${i-1};render()">${s}</button>`).join('')}</div>${list.map(orderCard).join('')||empty('Aucune commande dans cette liste.')}`;
+  return `<button class="btn" onclick="openOrder()">+ Nouvelle commande</button><input id="sq" type="search" placeholder="Rechercher : client, produit ou n° de commande" value="${esc(query)}" oninput="query=this.value;$('#ol').innerHTML=olist()"><div class="chips">${['Toutes',...ST].map((s,i)=>`<button class="chip${i-1===filter?' on':''}" onclick="filter=${i-1};render()">${s}</button>`).join('')}</div><div id="ol" style="display:grid;gap:12px">${olist()}</div>`;
 }
 function products(){
   return `<button class="btn" onclick="openProduct()">+ Nouveau produit</button>${S.products.map(p=>`<div class="card row"><div><b>${esc(p.name)}</b><div class="muted">${fmt(p.price)} · stock : ${p.stock}</div>${p.stock<=LOW?'<span class="badge" style="--c:var(--warn)">Stock faible</span>':''}</div><div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="openProduct('${p.id}')">Modifier</button><button class="btn danger sm" onclick="delP('${p.id}')">${pend===p.id?'Confirmer ?':'Supprimer'}</button></div></div>`).join('')||empty('Ajoutez votre premier produit pour pouvoir enregistrer des commandes.')}`;
@@ -131,13 +248,13 @@ function clients(){
 
 function openProduct(id){
   const p=S.products.find(x=>x.id===id)||{};
-  sheet(`<h2>${id?'Modifier le produit':'Nouveau produit'}</h2><label>Nom<input id="pn" value="${esc(p.name||'')}"></label><label>Prix (FCFA)<input id="pp" type="number" inputmode="numeric" value="${p.price==null?'':p.price}"></label><label>Stock<input id="ps" type="number" inputmode="numeric" value="${p.stock==null?'':p.stock}"></label><button class="btn" onclick="saveProduct('${id||''}')">Enregistrer</button>`);
+  sheet(`<h2>${id?'Modifier le produit':'Nouveau produit'}</h2><label>Nom<input id="pn" value="${esc(p.name||'')}"></label><label>Prix (FCFA)<input id="pp" type="number" inputmode="numeric" value="${p.price==null?'':p.price}"></label><label>Stock<input id="ps" type="number" inputmode="numeric" value="${p.stock==null?'':p.stock}"></label><label>Prix d’achat (FCFA, facultatif)<input id="pc" type="number" inputmode="numeric" value="${p.cost==null?'':p.cost}"></label><button class="btn" onclick="saveProduct('${id||''}')">Enregistrer</button>`);
 }
 function saveProduct(id){
-  const name=$('#pn').value.trim(),price=Number($('#pp').value),stock=Number($('#ps').value);
+  const name=$('#pn').value.trim(),price=Number($('#pp').value),stock=Number($('#ps').value),cost=$('#pc').value===''?null:Number($('#pc').value);
   if(!name||!(price>=0)||$('#pp').value===''||$('#ps').value==='')return toast('Remplissez le nom, le prix et le stock');
   const p=S.products.find(x=>x.id===id);
-  if(p)Object.assign(p,{name,price,stock});else S.products.push({id:uid(),name,price,stock});
+  if(p)Object.assign(p,{name,price,stock,cost});else S.products.push({id:uid(),name,price,stock,cost});
   save();closeSheet();render();
 }
 function delP(id){if(pend===id){S.products=S.products.filter(p=>p.id!==id);pend=null;save()}else pend=id;render()}
@@ -155,34 +272,38 @@ function openOrder(){
   draft={};
   const avail=S.products.filter(p=>p.stock>0);
   sheet(`<h2>Nouvelle commande</h2><label>Client<input id="oc" list="cl" autocomplete="off" oninput="fillPhone()"></label><datalist id="cl">${S.clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist><label>Numéro WhatsApp<input id="op" inputmode="tel" placeholder="ex. 77 123 45 67"></label>
-  <div>${avail.map(p=>`<div class="line"><div><b>${esc(p.name)}</b><small>${fmt(p.price)} · stock : ${p.stock}</small></div><div class="step"><button onclick="q('${p.id}',-1)" aria-label="Retirer">−</button><span id="q${p.id}">0</span><button onclick="q('${p.id}',1)" aria-label="Ajouter">+</button></div></div>`).join('')||'<p class="muted">Aucun produit en stock.</p>'}</div>
+  <div>${avail.map(p=>`<div class="line"><div><b>${esc(p.name)}</b><small>${fmt(p.price)} · stock : <span id="s${p.id}">${p.stock}</span></small></div><div class="step"><button onclick="q('${p.id}',-1)" aria-label="Retirer">−</button><span id="q${p.id}">0</span><button onclick="q('${p.id}',1)" aria-label="Ajouter">+</button></div></div>`).join('')||'<p class="muted">Aucun produit en stock.</p>'}</div>
   <label>Note<input id="on" placeholder="Adresse, détail…"></label><div class="total"><span>Total</span><b id="ot">${fmt(0)}</b></div><button class="btn" onclick="saveOrder()">Enregistrer la commande</button>`);
 }
 function fillPhone(){const c=S.clients.find(x=>x.name.toLowerCase()===$('#oc').value.trim().toLowerCase());if(c&&c.phone)$('#op').value=c.phone}
 function q(id,d){
   const p=S.products.find(x=>x.id===id),n=Math.max(0,Math.min(p.stock,(draft[id]||0)+d));draft[id]=n;
-  $('#q'+id).textContent=n;
+  $('#q'+id).textContent=n;$('#s'+id).textContent=p.stock-n;
   $('#ot').textContent=fmt(Object.keys(draft).reduce((a,k)=>a+draft[k]*S.products.find(x=>x.id===k).price,0));
 }
 function saveOrder(){
   const name=$('#oc').value.trim(),phone=$('#op').value.trim();
-  const items=Object.keys(draft).filter(k=>draft[k]>0).map(k=>{const p=S.products.find(x=>x.id===k);return{pid:k,name:p.name,price:p.price,qty:draft[k]}});
+  const items=Object.keys(draft).filter(k=>draft[k]>0).map(k=>{const p=S.products.find(x=>x.id===k);return{pid:k,name:p.name,price:p.price,cost:p.cost==null?null:p.cost,qty:draft[k]}});
   if(!name)return toast('Indiquez le nom du client');
   if(!items.length)return toast('Choisissez au moins un produit');
   let c=S.clients.find(x=>x.name.toLowerCase()===name.toLowerCase());
   if(!c){c={id:uid(),name,phone};S.clients.push(c)}else if(phone)c.phone=phone;
   items.forEach(i=>{const p=S.products.find(x=>x.id===i.pid);p.stock-=i.qty});
-  S.orders.unshift({id:uid(),num:S.seq++,cid:c.id,items,total:items.reduce((a,i)=>a+i.price*i.qty,0),status:0,ts:Date.now(),note:$('#on').value.trim()});
-  save();closeSheet();tab='orders';filter=-1;render();toast('Commande enregistrée');
+  S.orders.unshift({id:uid(),num:S.seq++,cid:c.id,items,total:items.reduce((a,i)=>a+i.price*i.qty,0),status:0,paid:0,ts:Date.now(),note:$('#on').value.trim()});
+  save();closeSheet();tab='orders';filter=-1;render();{const lw=items.map(i=>S.products.find(x=>x.id===i.pid)).filter(p=>p&&p.stock<=LOW);toast(lw.length?'Commande enregistrée · stock faible : '+lw.map(p=>p.name).join(', '):'Commande enregistrée')}
 }
 function setStatus(id,v){
   const o=S.orders.find(x=>x.id===id),n=Number(v),was=o.status;
   const move=sign=>o.items.forEach(i=>{const p=S.products.find(x=>x.id===i.pid);if(p)p.stock=Math.max(0,p.stock+sign*i.qty)});
   if(n===5&&was!==5)move(1);
-  if(was===5&&n!==5)move(-1);
+  if(was===5&&n!==5){
+    const short=o.items.find(i=>{const p=S.products.find(x=>x.id===i.pid);return p&&p.stock<i.qty});
+    if(short){render();return toast('Stock insuffisant pour rétablir cette commande : '+short.name)}
+    move(-1);
+  }
   o.status=n;save();render();
 }
-load();render();
+boot();
 </script>
 </body>
 </html>
