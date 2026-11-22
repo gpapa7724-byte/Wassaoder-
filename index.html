@@ -79,7 +79,7 @@ nav button.on{color:var(--brand)}
 <div id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-let KEY='wassaorder:v1',AUTH=null,ready=false,pt,PLAN='gratuit',EXP=null;
+let KEY='wassaorder:v1',AUTH=null,ready=false,pt,PLAN='gratuit',EXP=null,ADMIN=false;
 const LOW=5,LIMIT=30,SB_URL='https://keglwburhrnpuxfteihw.supabase.co',SB_KEY='sb_publishable_YVzaacmg2bGyxs6WS9KnDw_qiPLmSpP',sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 const ST=['Nouvelle','Confirmée','En préparation','En livraison','Livrée','Annulée'];
 const COL=['#3b82f6','#8b5cf6','#d97706','#0891b2','#16a34a','#dc2626'];
@@ -124,7 +124,7 @@ function home(){
   return `<div class="hero"><b>${open} commande${open>1?'s':''} à traiter</b><span>${today} reçue${today>1?'s':''} aujourd’hui</span></div>
   <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b${low.length?' style="color:var(--warn)"':''}>${S.products.reduce((a,p)=>a+p.stock,0)}</b><span${low.length?' style="color:var(--warn);font-weight:600"':''}>${low.length?'Stock faible':'Stock total'}</span></div></div>
   <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
-  <div class="card"><div class="row"><b>Formule ${PLANS[PLAN].n}</b><span class="muted">${PLAN==='gratuit'?m+'/'+LIMIT+' ce mois':'jusqu’au '+(EXP||'').split('-').reverse().join('/')}</span></div>${PLAN==='gratuit'?`<div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div><button class="btn" style="margin-top:12px" onclick="openPlan()">Passer à Pro · 5 000 FCFA par mois</button>`:''}</div>
+  <div class="card"><div class="row"><b>Formule ${PLANS[PLAN].n}</b><span class="muted">${PLAN==='gratuit'?m+'/'+LIMIT+' ce mois':'jusqu’au '+(EXP||'').split('-').reverse().join('/')}</span></div>${PLAN==='gratuit'?`<div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div><button class="btn" style="margin-top:12px" onclick="openPlan()">Passer à Pro · 5 000 FCFA par mois</button>`:''}${PLAN!=='gratuit'&&EXP&&(new Date(EXP)-Date.now())<6048e5?`<button class="btn" style="margin-top:12px" onclick="openPlan()">Renouveler · 5 000 FCFA</button>`:''}</div>
   ${stats()}
   ${S.products.length?`<div class="card"><div class="row"><b>Stock des produits</b><span class="muted">${S.products.reduce((a,p)=>a+p.stock,0)} en tout</span></div>${S.products.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:${p.stock===0?'var(--danger)':p.stock<=LOW?'var(--warn)':'#16a34a'}">${p.stock===0?'Épuisé':p.stock<=LOW?'Stock faible : '+p.stock:p.stock+' en stock'}</span></div>`).join('')}</div>`:''}
   <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
@@ -158,6 +158,17 @@ async function loadPlan(){
   const r=await sb.from('abonnements').select('plan,expire_le').maybeSingle(),a=r.data;
   PLAN=a&&PLANS[a.plan]&&a.plan!=='gratuit'&&a.expire_le&&a.expire_le>=new Date().toISOString().slice(0,10)?a.plan:'gratuit';
   EXP=a?a.expire_le:null;
+  const s=await sb.rpc('suis_admin');ADMIN=s.data===true;
+}
+async function openAdmin(){
+  const r=await sb.rpc('demandes_a_traiter'),l=r.data||[];
+  sheet(`<h2>Demandes de paiement</h2>${l.length?l.map(d=>`<div class="card" style="display:grid;gap:8px"><b>${esc(d.email||'?')}</b><span class="muted">${esc(d.plan)} · ${fmt(d.montant)} · ${new Date(d.created_at).toLocaleDateString('fr-FR')}</span><button class="btn" onclick="activer(${d.id})">Paiement reçu : activer Pro 30 jours</button></div>`).join(''):'<p class="muted">Aucune demande en attente.</p>'}`);
+}
+async function activer(id){
+  if(!confirm('Avez-vous bien reçu le paiement dans Wave ou Orange Money ?'))return;
+  const r=await sb.rpc('activer_pro',{demande:id});
+  if(r.error)return toast('Erreur : '+r.error.message);
+  toast('Pro activé pour 30 jours');openAdmin();
 }
 function openPlan(){
   sheet(`<h2>Passer à Pro</h2><p class="muted">Commandes illimitées pour 5 000 FCFA par mois.</p><div class="card" style="display:grid;gap:6px"><b>1. Envoyez 5 000 FCFA</b><span>Wave ou Orange Money : <b>78 500 94 28</b></span><span class="muted">Écrivez votre e-mail ${esc(AUTH?AUTH.email:'')} en référence.</span></div><div class="card" style="display:grid;gap:6px"><b>2. Appuyez sur « J’ai payé »</b><span class="muted">Vous envoyez la preuve de paiement sur WhatsApp. Votre formule Pro est activée après vérification.</span></div><button class="btn" onclick="paid()">J’ai payé, envoyer la preuve</button><p class="muted" style="font-size:13px">La formule Business (plusieurs utilisateurs et livreurs, 10 000 FCFA par mois) arrive bientôt.</p>`);
@@ -180,7 +191,7 @@ async function doAuth(mode){
   enter(r.data.session.user);
 }
 async function enter(user){
-  AUTH=user;ready=false;KEY='wassaorder:v1:'+user.id;
+  AUTH=user;ready=false;ADMIN=false;PLAN='gratuit';EXP=null;KEY='wassaorder:v1:'+user.id;
   S={user:null,products:[],clients:[],orders:[],seq:1};load();
   if(S.user)render();else $('#app').innerHTML='<main style="padding-top:56px"><div class="empty">Chargement de vos données…</div></main>';
   await pull();
@@ -217,7 +228,7 @@ async function logout(){
 }
 function openProfile(){
   const u=S.user;
-  sheet(`<h2>Profil de la boutique</h2><label>Nom de la boutique<input id="fs" value="${esc(u.shop)}"></label><label>Numéro WhatsApp de la boutique<input id="fw" inputmode="tel" value="${esc(u.wa||'')}" placeholder="ex. 77 123 45 67"></label><div class="row"><span class="muted">Logo</span><span id="lp">${u.logo?`<img src="${u.logo}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover">`:''}</span></div><label class="btn ghost" style="position:relative;overflow:hidden">${u.logo?'Changer le logo':'Ajouter un logo'}<input id="lf" type="file" accept="image/*" aria-label="Choisir un logo" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" onchange="pickLogo(this)"></label>${u.logo?'<button class="btn danger" onclick="delLogo()">Retirer le logo</button>':''}<button class="btn" onclick="saveProfile()">Enregistrer</button>${AUTH?`<button class="btn danger" onclick="logout()">Se déconnecter (${esc(AUTH.email)})</button>`:''}`);
+  sheet(`<h2>Profil de la boutique</h2><label>Nom de la boutique<input id="fs" value="${esc(u.shop)}"></label><label>Numéro WhatsApp de la boutique<input id="fw" inputmode="tel" value="${esc(u.wa||'')}" placeholder="ex. 77 123 45 67"></label><div class="row"><span class="muted">Logo</span><span id="lp">${u.logo?`<img src="${u.logo}" alt="" style="width:48px;height:48px;border-radius:10px;object-fit:cover">`:''}</span></div><label class="btn ghost" style="position:relative;overflow:hidden">${u.logo?'Changer le logo':'Ajouter un logo'}<input id="lf" type="file" accept="image/*" aria-label="Choisir un logo" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer" onchange="pickLogo(this)"></label>${u.logo?'<button class="btn danger" onclick="delLogo()">Retirer le logo</button>':''}<button class="btn" onclick="saveProfile()">Enregistrer</button>${ADMIN?'<button class="btn ghost" onclick="openAdmin()">Demandes de paiement</button>':''}${AUTH?`<button class="btn danger" onclick="logout()">Se déconnecter (${esc(AUTH.email)})</button>`:''}`);
 }
 function saveProfile(){
   const shop=$('#fs').value.trim();if(!shop)return toast('Indiquez le nom de la boutique');
