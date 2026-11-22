@@ -75,7 +75,7 @@ nav button.on{color:var(--brand)}
 <div id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-let KEY='wassaorder:v1',AUTH=null,ready=false,pt;
+let KEY='wassaorder:v1',AUTH=null,ready=false,pt,PLAN='gratuit',EXP=null;
 const LOW=5,LIMIT=30,SB_URL='https://keglwburhrnpuxfteihw.supabase.co',SB_KEY='sb_publishable_YVzaacmg2bGyxs6WS9KnDw_qiPLmSpP',sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 const ST=['Nouvelle','Confirmée','En préparation','En livraison','Livrée','Annulée'];
 const COL=['#3b82f6','#8b5cf6','#d97706','#0891b2','#16a34a','#dc2626'];
@@ -120,7 +120,7 @@ function home(){
   return `<div class="hero"><b>${open} commande${open>1?'s':''} à traiter</b><span>${today} reçue${today>1?'s':''} aujourd’hui</span></div>
   <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b${low.length?' style="color:var(--warn)"':''}>${S.products.reduce((a,p)=>a+p.stock,0)}</b><span${low.length?' style="color:var(--warn);font-weight:600"':''}>${low.length?'Stock faible':'Stock total'}</span></div></div>
   <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
-  <div class="card"><div class="row"><b>Formule Gratuit</b><span class="muted">${m}/${LIMIT} ce mois</span></div><div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div></div>
+  <div class="card"><div class="row"><b>Formule ${PLANS[PLAN].n}</b><span class="muted">${PLAN==='gratuit'?m+'/'+LIMIT+' ce mois':'jusqu’au '+(EXP||'').split('-').reverse().join('/')}</span></div>${PLAN==='gratuit'?`<div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div><button class="btn" style="margin-top:12px" onclick="openPlan()">Passer à Pro · 5 000 FCFA par mois</button>`:''}</div>
   ${stats()}
   ${S.products.length?`<div class="card"><div class="row"><b>Stock des produits</b><span class="muted">${S.products.reduce((a,p)=>a+p.stock,0)} en tout</span></div>${S.products.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:${p.stock===0?'var(--danger)':p.stock<=LOW?'var(--warn)':'#16a34a'}">${p.stock===0?'Épuisé':p.stock<=LOW?'Stock faible : '+p.stock:p.stock+' en stock'}</span></div>`).join('')}</div>`:''}
   <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
@@ -148,6 +148,20 @@ function stats(){
   const its=mo.flatMap(o=>o.items).filter(i=>i.cost!=null),prof=its.reduce((a,i)=>a+i.qty*(i.price-i.cost),0);
   const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0],due=ok.reduce((a,o)=>a+o.total-(o.paid||0),0);
   return `<div class="card"><b>Ventes</b>${[['Aujourd’hui',td],['7 derniers jours',w],['Ce mois-ci',mo]].map(r=>`<div class="line"><span>${r[0]}</span><b>${fmt(sum(r[1]))}</b></div>`).join('')}${its.length?`<div class="line"><span>Bénéfice ce mois-ci</span><b>${fmt(prof)}</b></div>`:''}<div class="line"><span>Reste à encaisser</span><b>${fmt(due)}</b></div>${top?`<div class="line"><span>Produit le plus vendu</span><b>${esc(top[0])} (${top[1]})</b></div>`:''}</div>`;
+}
+const PLANS={gratuit:{n:'Gratuit',lim:LIMIT},pro:{n:'Pro',lim:Infinity},business:{n:'Business',lim:Infinity}};
+async function loadPlan(){
+  const r=await sb.from('abonnements').select('plan,expire_le').maybeSingle(),a=r.data;
+  PLAN=a&&PLANS[a.plan]&&a.plan!=='gratuit'&&a.expire_le&&a.expire_le>=new Date().toISOString().slice(0,10)?a.plan:'gratuit';
+  EXP=a?a.expire_le:null;
+}
+function openPlan(){
+  sheet(`<h2>Passer à Pro</h2><p class="muted">Commandes illimitées pour 5 000 FCFA par mois.</p><div class="card" style="display:grid;gap:6px"><b>1. Envoyez 5 000 FCFA</b><span>Wave ou Orange Money : <b>78 500 94 28</b></span><span class="muted">Écrivez votre e-mail ${esc(AUTH?AUTH.email:'')} en référence.</span></div><div class="card" style="display:grid;gap:6px"><b>2. Appuyez sur « J’ai payé »</b><span class="muted">Vous envoyez la preuve de paiement sur WhatsApp. Votre formule Pro est activée après vérification.</span></div><button class="btn" onclick="paid()">J’ai payé, envoyer la preuve</button><p class="muted" style="font-size:13px">La formule Business (plusieurs utilisateurs et livreurs, 10 000 FCFA par mois) arrive bientôt.</p>`);
+}
+async function paid(){
+  if(sb&&AUTH)await sb.from('demandes_paiement').insert({plan:'pro',montant:5000,email:AUTH.email});
+  const msg=`Bonjour, j’ai payé 5 000 FCFA pour la formule Pro de WassaOrder. Mon e-mail : ${AUTH?AUTH.email:''}. Voici la preuve de paiement :`;
+  window.open('https://wa.me/221785009428?text='+encodeURIComponent(msg),'_blank');
 }
 function authScreen(msg){
   $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px"><h1>WassaOrder</h1><p class="muted">Connectez-vous pour retrouver vos commandes sur tous vos téléphones.</p></div><div class="card" style="display:grid;gap:12px"><label>E-mail<input id="ae" type="email" inputmode="email" autocomplete="email"></label><label>Mot de passe (6 caractères minimum)<input id="ap" type="password" autocomplete="current-password"></label><button class="btn" onclick="doAuth('in')">Se connecter</button><button class="btn ghost" onclick="doAuth('up')">Créer mon compte</button>${msg?`<p class="muted">${esc(msg)}</p>`:''}</div></main>`;
@@ -185,6 +199,7 @@ async function pull(){
     }catch(e){}
     if(S.user)save();
   }
+  await loadPlan();
   render();
 }
 async function boot(){
@@ -268,7 +283,7 @@ function saveClient(){
 
 function openOrder(){
   if(!S.products.length)return toast('Ajoutez d’abord un produit');
-  if(monthCount()>=LIMIT)return toast('Limite de '+LIMIT+' commandes atteinte ce mois-ci (formule Gratuit)');
+  if(monthCount()>=PLANS[PLAN].lim){toast('Limite de '+LIMIT+' commandes atteinte ce mois-ci');return openPlan()}
   draft={};
   const avail=S.products.filter(p=>p.stock>0);
   sheet(`<h2>Nouvelle commande</h2><label>Client<input id="oc" list="cl" autocomplete="off" oninput="fillPhone()"></label><datalist id="cl">${S.clients.map(c=>`<option value="${esc(c.name)}">`).join('')}</datalist><label>Numéro WhatsApp<input id="op" inputmode="tel" placeholder="ex. 77 123 45 67"></label>
