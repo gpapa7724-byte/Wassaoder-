@@ -92,7 +92,7 @@ const fmt=n=>Number(n||0).toLocaleString('fr-FR')+' FCFA';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const day=ts=>new Date(ts).toLocaleDateString('sv');
 const num=p=>{const d=String(p||'').replace(/\D/g,'');return d.length===9?'221'+d:d};
-const monthCount=()=>S.orders.filter(o=>day(o.ts).slice(0,7)===day(Date.now()).slice(0,7)).length;
+const monthCount=()=>S.orders.filter(o=>day(o.ts).slice(0,7)===day(Date.now()).slice(0,7)).length+((S.del||{})[day(Date.now()).slice(0,7)]||0);
 function load(){try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r));S.products.forEach(p=>{p.stock=Math.max(0,Math.floor(Number(p.stock))||0);p.price=Number(p.price)||0})}catch(e){}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}push()}
 function push(){
@@ -129,17 +129,21 @@ function home(){
   return `<div class="hero"><b>${open} commande${open>1?'s':''} à traiter</b><span>${today} reçue${today>1?'s':''} aujourd’hui</span></div>
   <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b${low.length?' style="color:var(--warn)"':''}>${S.products.reduce((a,p)=>a+p.stock,0)}</b><span${low.length?' style="color:var(--warn);font-weight:600"':''}>${low.length?'Stock faible':'Stock total'}</span></div></div>
   <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
+  ${onlineCard('top')}
+  <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}
   <div class="card"><div class="row"><b>Formule ${PLANS[PLAN].n}</b><span class="muted">${PLAN==='gratuit'?m+'/'+LIMIT+' ce mois':'jusqu’au '+(EXP||'').split('-').reverse().join('/')}</span></div>${PLAN==='gratuit'?`<div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div><button class="btn" style="margin-top:12px" onclick="openPlan()">Passer à Pro · 5 000 FCFA par mois</button>`:''}${PLAN!=='gratuit'&&EXP&&(new Date(EXP)-Date.now())<6048e5?`<button class="btn" style="margin-top:12px" onclick="openPlan()">Renouveler · 5 000 FCFA</button>`:''}</div>
-  ${onlineCard()}
   ${stats()}
   ${S.products.length?`<div class="card"><div class="row"><b>Stock des produits</b><span class="muted">${S.products.reduce((a,p)=>a+p.stock,0)} en tout</span></div>${S.products.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:${p.stock===0?'var(--danger)':p.stock<=LOW?'var(--warn)':'#16a34a'}">${p.stock===0?'Épuisé':p.stock<=LOW?'Stock faible : '+p.stock:p.stock+' en stock'}</span></div>`).join('')}</div>`:''}
-  <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
+  ${onlineCard()}`;
 }
 const PAY=['Non payé','Partiel','Payé'],ps=o=>o.paid>0?(o.paid>=o.total?2:1):0;
 function olist(){
   const k=query.trim().toLowerCase();
   const l=S.orders.filter(o=>(filter<0||o.status===filter)&&(!k||[String(o.num),(S.clients.find(c=>c.id===o.cid)||{}).name||'',...o.items.map(i=>i.name)].join(' ').toLowerCase().includes(k)));
-  return l.map(orderCard).join('')||empty('Aucune commande trouvée.');
+  const lab=ts=>{const d=day(ts);return d===day(Date.now())?'Aujourd’hui':d===day(Date.now()-864e5)?'Hier':new Date(ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})};
+  let last='',h='';
+  l.forEach(o=>{const g=lab(o.ts);if(g!==last){h+=`<h3>${g}</h3>`;last=g}h+=orderCard(o)});
+  return h||empty('Aucune commande trouvée.');
 }
 function rc(o,c){
   const msg=`🧾 Reçu n°${o.num} · ${S.user.shop} — ${o.items.map(i=>`${i.qty} × ${i.name} : ${fmt(i.price*i.qty)}`).join(', ')}. Total : ${fmt(o.total)}. Payé : ${fmt(o.paid||0)}. Reste à payer : ${fmt(o.total-(o.paid||0))}. Merci ${c.name} !${S.user.wa?' Contact : '+S.user.wa:''}`;
@@ -172,9 +176,11 @@ function ensureSlug(){
 }
 function shopLink(){return location.origin+location.pathname+'?b='+S.user.slug}
 function copyLink(){const l=shopLink();(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>toast('Lien copié'),()=>toast(l))}
-function onlineCard(){
+function onlineCard(part){
   const n=ONL.length;
-  return (n?`<div class="card" style="display:grid;gap:8px"><b>🛒 ${n} nouvelle${n>1?'s':''} commande${n>1?'s':''} en ligne</b><button class="btn" onclick="importOnline()">Importer dans mes commandes</button></div>`:'')+(S.user&&S.user.slug?`<div class="card" style="display:grid;gap:8px"><b>Votre lien de commande</b><span class="muted" style="word-break:break-all">${esc(shopLink())}</span><div class="row"><button class="btn ghost sm" onclick="copyLink()">Copier</button><a class="btn ghost sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Commandez chez '+S.user.shop+' ici : '+shopLink())}">Partager sur WhatsApp</a></div></div>`:'')+(localStorage.getItem('wassaorder:push')==='1'?'':`<div class="card" style="display:grid;gap:8px"><b>🔔 Notifications</b><span class="muted">Soyez prévenu dès qu’une commande arrive, même quand l’app est fermée.</span><button class="btn" onclick="enablePush()">Activer les notifications</button></div>`);
+  const top=(n?`<div class="card" style="display:grid;gap:8px"><b>🛒 ${n} nouvelle${n>1?'s':''} commande${n>1?'s':''} en ligne</b><button class="btn" onclick="importOnline()">Importer dans mes commandes</button></div>`:'');
+  if(part==='top')return top;
+  return (S.user&&S.user.slug?`<div class="card" style="display:grid;gap:8px"><b>Votre lien de commande</b><span class="muted" style="word-break:break-all">${esc(shopLink())}</span><div class="row"><button class="btn ghost sm" onclick="copyLink()">Copier</button><a class="btn ghost sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Commandez chez '+S.user.shop+' ici : '+shopLink())}">Partager sur WhatsApp</a></div></div>`:'')+(localStorage.getItem('wassaorder:push')==='1'?'':`<div class="card" style="display:grid;gap:8px"><b>🔔 Notifications</b><span class="muted">Soyez prévenu dès qu’une commande arrive, même quand l’app est fermée.</span><button class="btn" onclick="enablePush()">Activer les notifications</button></div>`);
 }
 async function loadOnline(){
   const r=await sb.from('commandes_en_ligne').select('id,nom,tel,note,lignes').eq('statut','nouvelle').order('created_at');
@@ -336,16 +342,37 @@ function wa(o,c){
   const msg=`Bonjour ${c.name}, votre commande n°${o.num} (${o.items.map(i=>i.qty+' '+i.name).join(', ')}) : ${fmt(o.total)}. Statut : ${ST[o.status]}.`;
   return `https://wa.me/${num(c.phone)}?text=${encodeURIComponent(msg)}`;
 }
+function rmOrders(l){
+  const ym=day(Date.now()).slice(0,7),ids=new Set(l.map(o=>o.id));S.del=S.del||{};
+  l.forEach(o=>{if(day(o.ts).slice(0,7)===ym)S.del[ym]=(S.del[ym]||0)+1});
+  S.orders=S.orders.filter(o=>!ids.has(o.id));save();
+}
+function delO(id){
+  const o=S.orders.find(x=>x.id===id);if(!o)return;
+  if(o.status<4)return toast('Seules les commandes livrées ou annulées peuvent être supprimées');
+  if(pend!==id){pend=id;render();return toast('Touchez « Confirmer ? » pour supprimer. Elle ne comptera plus dans vos ventes.')}
+  pend=null;rmOrders([o]);render();toast('Commande supprimée');
+}
+function openClean(){
+  const t=Date.now(),old=S.orders.filter(o=>o.status===4&&t-o.ts>90*864e5),can=S.orders.filter(o=>o.status===5);
+  sheet(`<h2>Nettoyer l’historique</h2><p class="muted">Supprimez les commandes terminées pour alléger l’app. Une commande supprimée ne compte plus dans vos ventes ni votre bénéfice.</p><button class="btn ghost" ${can.length?'':'disabled'} onclick="clean(5)">Supprimer les commandes annulées (${can.length})</button><button class="btn ghost" ${old.length?'':'disabled'} onclick="clean(4)">Supprimer les commandes livrées de plus de 90 jours (${old.length})</button>`);
+}
+function clean(s){
+  const t=Date.now(),l=S.orders.filter(o=>s===5?o.status===5:o.status===4&&t-o.ts>90*864e5);
+  if(!l.length)return;
+  if(!confirm('Supprimer '+l.length+' commande'+(l.length>1?'s':'')+' ? Cette action est définitive.'))return;
+  rmOrders(l);closeSheet();render();toast(l.length+(l.length>1?' commandes supprimées':' commande supprimée'));
+}
 function orderCard(o){
   const c=S.clients.find(x=>x.id===o.cid)||{name:'Client',phone:''};
   return `<div class="card" style="display:grid;gap:8px"><div class="row"><b>n°${o.num} · ${esc(c.name)}</b><span class="badge" style="--c:${COL[o.status]}">${ST[o.status]}</span></div>
   <div class="muted">${o.items.map(i=>`${i.qty} × ${esc(i.name)}`).join(', ')}${o.note?` — ${esc(o.note)}`:''}</div>
   <div class="row"><b>${fmt(o.total)}</b><span class="muted">${new Date(o.ts).toLocaleDateString('fr-FR')}</span></div>
   <div class="row"><select aria-label="Statut" onchange="setStatus('${o.id}',this.value)">${ST.map((s,i)=>`<option value="${i}"${i===o.status?' selected':''}>${s}</option>`).join('')}</select><a class="btn sm" target="_blank" rel="noopener" href="${wa(o,c)}">WhatsApp</a></div>
-  <div class="row"><select aria-label="Paiement" onchange="setPay('${o.id}',this.value)">${PAY.map((s,i)=>`<option value="${i}"${i===ps(o)?' selected':''}>${s}${i===1&&ps(o)===1?' · reste '+fmt(o.total-o.paid):''}</option>`).join('')}</select><a class="btn ghost sm" target="_blank" rel="noopener" href="${rc(o,c)}">Reçu</a></div></div>`;
+  <div class="row"><select aria-label="Paiement" onchange="setPay('${o.id}',this.value)">${PAY.map((s,i)=>`<option value="${i}"${i===ps(o)?' selected':''}>${s}${i===1&&ps(o)===1?' · reste '+fmt(o.total-o.paid):''}</option>`).join('')}</select><a class="btn ghost sm" target="_blank" rel="noopener" href="${rc(o,c)}">Reçu</a></div>${o.status>=4?`<div class="row"><span class="muted">Commande terminée</span><button class="btn danger sm" onclick="delO('${o.id}')">${pend===o.id?'Confirmer ?':'Supprimer'}</button></div>`:''}</div>`;
 }
 function orders(){
-  return `<button class="btn" onclick="openOrder()">+ Nouvelle commande</button><input id="sq" type="search" placeholder="Rechercher : client, produit ou n° de commande" value="${esc(query)}" oninput="query=this.value;$('#ol').innerHTML=olist()"><div class="chips">${['Toutes',...ST].map((s,i)=>`<button class="chip${i-1===filter?' on':''}" onclick="filter=${i-1};render()">${s}</button>`).join('')}</div><div id="ol" style="display:grid;gap:12px">${olist()}</div>`;
+  return `<button class="btn" onclick="openOrder()">+ Nouvelle commande</button><input id="sq" type="search" placeholder="Rechercher : client, produit ou n° de commande" value="${esc(query)}" oninput="query=this.value;$('#ol').innerHTML=olist()"><div class="chips">${['Toutes',...ST].map((s,i)=>`<button class="chip${i-1===filter?' on':''}" onclick="filter=${i-1};render()">${s} (${i?S.orders.filter(o=>o.status===i-1).length:S.orders.length})</button>`).join('')}</div><div id="ol" style="display:grid;gap:12px">${olist()}</div>${S.orders.some(o=>o.status>=4)?`<button class="btn ghost sm" onclick="openClean()">Nettoyer l’historique</button>`:''}`;
 }
 function products(){
   return `<button class="btn" onclick="openProduct()">+ Nouveau produit</button>${S.products.map(p=>`<div class="card row"><div><b>${esc(p.name)}</b><div class="muted">${fmt(p.price)} · stock : ${p.stock}</div>${p.stock<=LOW?'<span class="badge" style="--c:var(--warn)">Stock faible</span>':''}</div><div style="display:flex;gap:6px"><button class="btn ghost sm" onclick="openProduct('${p.id}')">Modifier</button><button class="btn danger sm" onclick="delP('${p.id}')">${pend===p.id?'Confirmer ?':'Supprimer'}</button></div></div>`).join('')||empty('Ajoutez votre premier produit pour pouvoir enregistrer des commandes.')}`;
