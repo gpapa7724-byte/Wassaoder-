@@ -79,7 +79,7 @@ nav button.on{color:var(--brand)}
 <div id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
-let KEY='wassaorder:v1',AUTH=null,ready=false,pt,PLAN='gratuit',EXP=null,ADMIN=false;
+let KEY='wassaorder:v1',AUTH=null,ready=false,pt,PLAN='gratuit',EXP=null,ADMIN=false,ONL=[];
 const LOW=5,LIMIT=30,SB_URL='https://keglwburhrnpuxfteihw.supabase.co',SB_KEY='sb_publishable_YVzaacmg2bGyxs6WS9KnDw_qiPLmSpP',sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
 const ST=['Nouvelle','Confirmée','En préparation','En livraison','Livrée','Annulée'];
 const COL=['#3b82f6','#8b5cf6','#d97706','#0891b2','#16a34a','#dc2626'];
@@ -98,7 +98,12 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}push()
 function push(){
   if(!sb||!AUTH||!ready)return;
   clearTimeout(pt);
-  pt=setTimeout(async()=>{const r=await sb.from('sauvegardes').upsert({user_id:AUTH.id,data:S,updated_at:new Date().toISOString()});if(r.error)toast('Sauvegarde en ligne impossible pour le moment')},700);
+  pt=setTimeout(async()=>{
+    ensureSlug();
+    const r=await sb.from('sauvegardes').upsert({user_id:AUTH.id,data:S,updated_at:new Date().toISOString()});
+    if(r.error)toast('Sauvegarde en ligne impossible pour le moment');
+    if(S.user)await sb.from('boutiques').upsert({user_id:AUTH.id,slug:S.user.slug,nom:S.user.shop,wa:S.user.wa||'',catalogue:S.products.map(p=>({id:p.id,name:p.name,price:p.price,stock:p.stock}))});
+  },700);
 }
 function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
 function sheet(h){$('#sheet').innerHTML='<div class="panel">'+h+'<button class="btn ghost" onclick="closeSheet()">Fermer</button></div>';$('#sheet').hidden=false}
@@ -125,6 +130,7 @@ function home(){
   <div class="grid"><div class="stat"><b>${fmt(sales)}</b><span>Ventes livrées</span></div><div class="stat"><b>${S.orders.length}</b><span>Commandes au total</span></div><div class="stat"><b${low.length?' style="color:var(--warn)"':''}>${S.products.reduce((a,p)=>a+p.stock,0)}</b><span${low.length?' style="color:var(--warn);font-weight:600"':''}>${low.length?'Stock faible':'Stock total'}</span></div></div>
   <button class="btn" onclick="openOrder()">+ Nouvelle commande</button>
   <div class="card"><div class="row"><b>Formule ${PLANS[PLAN].n}</b><span class="muted">${PLAN==='gratuit'?m+'/'+LIMIT+' ce mois':'jusqu’au '+(EXP||'').split('-').reverse().join('/')}</span></div>${PLAN==='gratuit'?`<div class="bar"><i style="width:${Math.min(100,m/LIMIT*100)}%"></i></div><button class="btn" style="margin-top:12px" onclick="openPlan()">Passer à Pro · 5 000 FCFA par mois</button>`:''}${PLAN!=='gratuit'&&EXP&&(new Date(EXP)-Date.now())<6048e5?`<button class="btn" style="margin-top:12px" onclick="openPlan()">Renouveler · 5 000 FCFA</button>`:''}</div>
+  ${onlineCard()}
   ${stats()}
   ${S.products.length?`<div class="card"><div class="row"><b>Stock des produits</b><span class="muted">${S.products.reduce((a,p)=>a+p.stock,0)} en tout</span></div>${S.products.map(p=>`<div class="line"><span>${esc(p.name)}</span><span class="badge" style="--c:${p.stock===0?'var(--danger)':p.stock<=LOW?'var(--warn)':'#16a34a'}">${p.stock===0?'Épuisé':p.stock<=LOW?'Stock faible : '+p.stock:p.stock+' en stock'}</span></div>`).join('')}</div>`:''}
   <h3>Dernières commandes</h3>${S.orders.slice(0,3).map(orderCard).join('')||empty('Aucune commande pour l’instant. Ajoutez vos produits, puis votre première commande.')}`;
@@ -160,6 +166,71 @@ async function loadPlan(){
   EXP=a?a.expire_le:null;
   const s=await sb.rpc('suis_admin');ADMIN=s.data===true;
 }
+let CART={},SHOP=null,C=[];
+function ensureSlug(){
+  if(S.user&&!S.user.slug)S.user.slug=(S.user.shop||'boutique').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)+'-'+Math.random().toString(36).slice(2,6);
+}
+function shopLink(){return location.origin+location.pathname+'?b='+S.user.slug}
+function copyLink(){const l=shopLink();(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>toast('Lien copié'),()=>toast(l))}
+function onlineCard(){
+  const n=ONL.length;
+  return (n?`<div class="card" style="display:grid;gap:8px"><b>🛒 ${n} nouvelle${n>1?'s':''} commande${n>1?'s':''} en ligne</b><button class="btn" onclick="importOnline()">Importer dans mes commandes</button></div>`:'')+(S.user&&S.user.slug?`<div class="card" style="display:grid;gap:8px"><b>Votre lien de commande</b><span class="muted" style="word-break:break-all">${esc(shopLink())}</span><div class="row"><button class="btn ghost sm" onclick="copyLink()">Copier</button><a class="btn ghost sm" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent('Commandez chez '+S.user.shop+' ici : '+shopLink())}">Partager sur WhatsApp</a></div></div>`:'')+(localStorage.getItem('wassaorder:push')==='1'?'':`<div class="card" style="display:grid;gap:8px"><b>🔔 Notifications</b><span class="muted">Soyez prévenu dès qu’une commande arrive, même quand l’app est fermée.</span><button class="btn" onclick="enablePush()">Activer les notifications</button></div>`);
+}
+async function loadOnline(){
+  const r=await sb.from('commandes_en_ligne').select('id,nom,tel,note,lignes').eq('statut','nouvelle').order('created_at');
+  ONL=r.data||[];
+}
+async function importOnline(){
+  let n=0;
+  for(const o of ONL.slice()){
+    if(monthCount()>=PLANS[PLAN].lim){toast('Limite atteinte : passez à Pro pour importer le reste');openPlan();break}
+    const u=await sb.from('commandes_en_ligne').update({statut:'importee'}).eq('id',o.id).eq('statut','nouvelle').select('id');
+    if(u.error||!u.data||!u.data.length){ONL=ONL.filter(x=>x.id!==o.id);continue}
+    let c=S.clients.find(x=>num(x.phone)===num(o.tel));
+    if(!c){c={id:uid(),name:o.nom,phone:o.tel};S.clients.push(c)}
+    const items=o.lignes.map(l=>{const p=S.products.find(x=>x.id===l.id);if(p)p.stock=Math.max(0,p.stock-l.q);return{pid:l.id,name:p?p.name:l.name,price:l.price,cost:p&&p.cost!=null?p.cost:null,qty:l.q}});
+    S.orders.unshift({id:uid(),num:S.seq++,cid:c.id,items,total:items.reduce((a,i)=>a+i.price*i.qty,0),status:0,paid:0,ts:Date.now(),note:o.note||''});
+    ONL=ONL.filter(x=>x.id!==o.id);n++;
+  }
+  if(n){save();toast(n+' commande'+(n>1?'s':'')+' importée'+(n>1?'s':''))}
+  render();
+}
+async function shopPage(slug){
+  $('#app').innerHTML='<main style="padding-top:56px"><div class="empty">Chargement…</div></main>';
+  const r=await sb.rpc('boutique_publique',{p_slug:slug});
+  if(r.error||!r.data)return $('#app').innerHTML='<main style="padding-top:56px"><div class="empty">Boutique introuvable.</div></main>';
+  SHOP=r.data;SHOP.slug=slug;C=(SHOP.catalogue||[]).filter(p=>p.stock>0);CART={};document.title=SHOP.nom;
+  $('#app').innerHTML=`<main style="padding-top:32px"><div style="display:grid;gap:6px"><h1>${esc(SHOP.nom)}</h1><p class="muted">Choisissez vos produits et envoyez votre commande.</p></div>${C.length?`<div class="card">${C.map((p,i)=>`<div class="line"><span>${esc(p.name)}<small>${fmt(p.price)} · ${p.stock} en stock</small></span><span style="display:flex;gap:10px;align-items:center"><button class="chip" onclick="cq(${i},-1)">−</button><b id="n${i}">0</b><button class="chip" onclick="cq(${i},1)">+</button></span></div>`).join('')}</div>`:'<div class="empty">Aucun produit disponible pour le moment.</div>'}<div class="card" style="display:grid;gap:12px"><label>Votre nom<input id="cn" autocomplete="name"></label><label>Votre numéro WhatsApp<input id="ct" type="tel" inputmode="tel" autocomplete="tel"></label><label>Adresse de livraison ou message (facultatif)<input id="cm"></label><div class="row"><b>Total</b><b id="tot">0 FCFA</b></div><button class="btn" onclick="sendShop()">Envoyer ma commande</button></div></main>`;
+}
+function cq(i,d){
+  const p=C[i],n=Math.max(0,Math.min(p.stock,(CART[p.id]||0)+d));
+  CART[p.id]=n;$('#n'+i).textContent=n;$('#tot').textContent=fmt(C.reduce((a,x)=>a+(CART[x.id]||0)*x.price,0));
+}
+function orderMsg(nom){return 'Bonjour, je viens de passer une commande en ligne : '+C.filter(p=>CART[p.id]>0).map(p=>CART[p.id]+' × '+p.name).join(', ')+'. Total : '+fmt(C.reduce((a,x)=>a+(CART[x.id]||0)*x.price,0))+'. Nom : '+nom+'.'}
+async function sendShop(){
+  const nom=$('#cn').value.trim(),tel=$('#ct').value.trim(),note=$('#cm').value.trim(),l=C.filter(p=>CART[p.id]>0).map(p=>({id:p.id,q:CART[p.id]}));
+  if(!l.length)return toast('Choisissez au moins un produit');
+  if(!nom||tel.replace(/\D/g,'').length<8)return toast('Indiquez votre nom et votre numéro WhatsApp');
+  const r=await sb.rpc('passer_commande',{p_slug:SHOP.slug,p_nom:nom,p_tel:tel,p_note:note,p_lignes:l});
+  if(r.error)return toast(/trop/i.test(r.error.message)?'Trop de commandes, réessayez plus tard':'Commande impossible, réessayez');
+  $('#app').innerHTML=`<main style="padding-top:56px"><div class="card" style="display:grid;gap:12px"><h2>Commande envoyée ✅</h2>${SHOP.wa?`<p class="muted">Dernière étape : touchez le bouton ci-dessous, puis Envoyer dans WhatsApp, pour que ${esc(SHOP.nom)} soit prévenu tout de suite.</p><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${num(SHOP.wa)}?text=${encodeURIComponent(orderMsg(nom))}">Prévenir la boutique sur WhatsApp</a>`:`<p class="muted">Votre commande est enregistrée. ${esc(SHOP.nom)} va vous contacter.</p>`}</div></main>`;
+}
+const b64u=s=>{const r=atob((s+'='.repeat((4-s.length%4)%4)).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0))};
+async function enablePush(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))return toast('Notifications non disponibles ici. Sur iPhone, ajoutez d’abord le site à l’écran d’accueil.');
+  try{
+    const p=await Notification.requestPermission();
+    if(p!=='granted')return toast('Notifications refusées : autorisez-les dans les réglages du navigateur');
+    const k=(await(await fetch(SB_URL+'/functions/v1/notifier')).json()).key;
+    const reg=await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    const sub=(await reg.pushManager.getSubscription())||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(k)});
+    const j=sub.toJSON();
+    const r=await sb.from('push_abonnements').upsert({user_id:AUTH.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth},{onConflict:'endpoint'});
+    if(r.error)throw r.error;
+    localStorage.setItem('wassaorder:push','1');toast('Notifications activées ✅');render();
+  }catch(e){toast('Activation impossible, réessayez')}
+}
 async function openAdmin(){
   const r=await sb.rpc('demandes_a_traiter'),l=r.data||[];
   sheet(`<h2>Demandes de paiement</h2>${l.length?l.map(d=>`<div class="card" style="display:grid;gap:8px"><b>${esc(d.email||'?')}</b><span class="muted">${esc(d.plan)} · ${fmt(d.montant)} · ${new Date(d.created_at).toLocaleDateString('fr-FR')}</span><button class="btn" onclick="activer(${d.id})">Paiement reçu : activer Pro 30 jours</button></div>`).join(''):'<p class="muted">Aucune demande en attente.</p>'}`);
@@ -191,7 +262,7 @@ async function doAuth(mode){
   enter(r.data.session.user);
 }
 async function enter(user){
-  AUTH=user;ready=false;ADMIN=false;PLAN='gratuit';EXP=null;KEY='wassaorder:v1:'+user.id;
+  AUTH=user;ready=false;ADMIN=false;PLAN='gratuit';EXP=null;ONL=[];KEY='wassaorder:v1:'+user.id;
   S={user:null,products:[],clients:[],orders:[],seq:1};load();
   if(S.user)render();else $('#app').innerHTML='<main style="padding-top:56px"><div class="empty">Chargement de vos données…</div></main>';
   await pull();
@@ -215,15 +286,22 @@ async function pull(){
     if(S.user)save();
   }
   await loadPlan();
+  await loadOnline();
+  if(S.user&&!S.user.slug){ensureSlug();save()}
+  if(!window._ti)window._ti=setInterval(async()=>{if(AUTH&&ready){await loadOnline();if(tab==='home'&&$('#sheet').hidden)render()}},60000);
   render();
 }
 async function boot(){
+  const b=new URLSearchParams(location.search).get('b');
+  if(b&&sb)return shopPage(b);
   if(!sb){load();return render()}
   const r=await sb.auth.getSession();
   if(r.data&&r.data.session)enter(r.data.session.user);else authScreen();
 }
 async function logout(){
-  clearTimeout(pt);await sb.auth.signOut();AUTH=null;ready=false;KEY='wassaorder:v1';
+  clearTimeout(pt);
+  try{const g=await navigator.serviceWorker.getRegistration(),s=g&&await g.pushManager.getSubscription();if(s){await sb.from('push_abonnements').delete().eq('endpoint',s.endpoint);await s.unsubscribe()}localStorage.removeItem('wassaorder:push')}catch(e){}
+  await sb.auth.signOut();AUTH=null;ready=false;KEY='wassaorder:v1';
   S={user:null,products:[],clients:[],orders:[],seq:1};closeSheet();authScreen();
 }
 function openProfile(){
