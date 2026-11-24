@@ -250,10 +250,24 @@ async function activer(id){
 function openPlan(){
   sheet(`<h2>Passer à Pro</h2><p class="muted">Commandes illimitées pour 5 000 FCFA par mois.</p><div class="card" style="display:grid;gap:6px"><b>1. Envoyez 5 000 FCFA</b><span>Wave ou Orange Money : <b>78 500 94 28</b></span><span class="muted">Écrivez votre e-mail ${esc(AUTH?AUTH.email:'')} en référence.</span></div><div class="card" style="display:grid;gap:6px"><b>2. Appuyez sur « J’ai payé »</b><span class="muted">Vous envoyez la preuve de paiement sur WhatsApp. Votre formule Pro est activée après vérification.</span></div><button class="btn" onclick="paid()">J’ai payé, envoyer la preuve</button><p class="muted" style="font-size:13px">La formule Business (plusieurs utilisateurs et livreurs, 10 000 FCFA par mois) arrive bientôt.</p>`);
 }
+let PAYING=false;
 async function paid(){
-  if(sb&&AUTH)await sb.from('demandes_paiement').insert({plan:'pro',montant:5000,email:AUTH.email});
-  const msg=`Bonjour, j’ai payé 5 000 FCFA pour la formule Pro de WassaOrder. Mon e-mail : ${AUTH?AUTH.email:''}. Voici la preuve de paiement :`;
-  window.open('https://wa.me/221785009428?text='+encodeURIComponent(msg),'_blank');
+  if(PAYING)return;
+  PAYING=true;
+  try{
+    if(sb&&AUTH){
+      toast('Un instant…');
+      const p=await sb.from('demandes_paiement').select('id').eq('user_id',AUTH.id).eq('traite',false).limit(1);
+      if(p.error)return toast('Connexion impossible, réessayez');
+      if(p.data&&p.data.length)toast('Demande déjà envoyée : elle sera traitée après vérification');
+      else{
+        const r=await sb.from('demandes_paiement').insert({plan:'pro',montant:5000,email:AUTH.email});
+        if(r.error&&r.error.code!=='23505')return toast('Demande non enregistrée, réessayez');
+      }
+    }
+    const msg=`Bonjour, j’ai payé 5 000 FCFA pour la formule Pro de WassaOrder. Mon e-mail : ${AUTH?AUTH.email:''}. Voici la preuve de paiement :`;
+    window.open('https://wa.me/221785009428?text='+encodeURIComponent(msg),'_blank');
+  }finally{PAYING=false}
 }
 function authScreen(msg){
   $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px"><h1>WassaOrder</h1><p class="muted">Connectez-vous pour retrouver vos commandes sur tous vos téléphones.</p></div><div class="card" style="display:grid;gap:12px"><label>E-mail<input id="ae" type="email" inputmode="email" autocomplete="email"></label><label>Mot de passe (6 caractères minimum)<input id="ap" type="password" autocomplete="current-password"></label><button class="btn" onclick="doAuth('in')">Se connecter</button><button class="btn ghost" onclick="doAuth('up')">Créer mon compte</button>${msg?`<p class="muted">${esc(msg)}</p>`:''}</div></main>`;
