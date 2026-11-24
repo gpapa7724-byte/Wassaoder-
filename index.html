@@ -75,7 +75,7 @@ nav button.on{color:var(--brand)}
 </head>
 <body>
 <div id="app"></div>
-<p class="muted" style="text-align:center;font-size:12px;padding:0 16px 8px">© 2026 WassaOrder · Babacar Gueye. Tous droits réservés.</p>
+<p id="ft" class="muted" style="text-align:center;font-size:12px;padding:0 16px 8px">© 2026 WassaOrder · Babacar Gueye. Tous droits réservés.</p>
 <div id="sheet" hidden onclick="if(event.target===this)closeSheet()"></div>
 <div id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -89,6 +89,7 @@ const TITLE={home:'Tableau de bord',orders:'Commandes',products:'Produits',clien
 let S={user:null,products:[],clients:[],orders:[],seq:1},tab='home',filter=-1,pend=null,draft={},tt,query='';
 const $=s=>document.querySelector(s);
 const LOGO=n=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="${n}" height="${n}" role="img" aria-label="WassaOrder" style="flex:none"><rect width="512" height="512" rx="116" fill="#9b1d54"/><path d="M168 112H344A64 64 0 0 1 408 176V288A64 64 0 0 1 344 352H236L150 424L168 352A64 64 0 0 1 104 288V176A64 64 0 0 1 168 112Z" fill="#fff" stroke="#fff" stroke-width="12" stroke-linejoin="round"/><path d="M196 232L242 278L322 190" fill="none" stroke="#9b1d54" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/><circle cx="396" cy="128" r="52" fill="#f5b942" stroke="#9b1d54" stroke-width="16"/></svg>`;
+$('#ft').insertAdjacentHTML('afterbegin','<span style="display:inline-block;vertical-align:-4px;margin-right:6px">'+LOGO(18)+'</span>');
 const BRAND=`<div style="display:flex;align-items:center;gap:12px">${LOGO(52)}<h1>Wassa<span style="color:var(--brand)">Order</span></h1></div>`;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('fr-FR')+' FCFA';
@@ -117,7 +118,7 @@ function empty(m){return '<div class="empty">'+m+'</div>'}
 function render(){
   if(!S.user)return onboard();
   const v={home,orders,products,clients}[tab]();
-  $('#app').innerHTML=`<header><button class="shopbtn" onclick="openProfile()" aria-label="Profil de la boutique">${S.user.logo?`<img src="${S.user.logo}" alt="">`:''}${esc(S.user.shop)} ✎</button><h1>${TITLE[tab]}</h1></header><main>${v}</main><nav>${NAV.map(n=>`<button class="${n[0]===tab?'on':''}" onclick="go('${n[0]}')"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`;
+  $('#app').innerHTML=`<header><div class="row"><button class="shopbtn" onclick="openProfile()" aria-label="Profil de la boutique">${S.user.logo?`<img src="${S.user.logo}" alt="">`:''}${esc(S.user.shop)} ✎</button>${LOGO(30)}</div><h1>${TITLE[tab]}</h1></header><main>${v}</main><nav>${NAV.map(n=>`<button class="${n[0]===tab?'on':''}" onclick="go('${n[0]}')"><span>${n[1]}</span>${n[2]}</button>`).join('')}</nav>`;
 }
 function onboard(){
   $('#app').innerHTML=`<main style="padding-top:56px"><div style="display:grid;gap:6px">${BRAND}<p class="muted">Gardez toutes vos commandes WhatsApp au même endroit.</p></div><div class="card" style="display:grid;gap:12px"><label>Votre nom<input id="un" autocomplete="name"></label><label>Nom de votre boutique<input id="us"></label><button class="btn" onclick="signup()">Créer mon compte gratuit</button></div><p class="muted" style="font-size:13px">Formule Gratuit : ${LIMIT} commandes par mois.</p></main>`;
